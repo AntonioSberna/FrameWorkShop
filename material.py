@@ -13,6 +13,7 @@ revert() -> trial reverts to committed  (called by solver after divergence)
 All attributes are readable (educational purpose).
 Writing only through update() / commit() / revert().
 """
+# add new comment 
 
 from __future__ import annotations
 
