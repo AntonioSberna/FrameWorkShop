@@ -39,7 +39,7 @@ class MaterialState:
     # --- committed ---
     eps_committed: float = 0.0    # converged strain
     sig_committed: float = 0.0    # converged stress
-    hstv_committed: dict = field(default_factory = dict) # 
+    hstv_committed: dict = field(default_factory = dict) # converged history variables
 
 
     # --- trial ---
@@ -226,3 +226,131 @@ class ElasticMaterial(Material):
 
     def __repr__(self) -> str:
         return f"ElasticMaterial(id={self.id!r}, E={self.E})"
+    
+
+# ---------------------------------------------------------------------------
+# bilinear material with isotropic hardening
+# ---------------------------------------------------------------------------
+class steel01(Material):
+
+    def __init__(
+            self,
+            id: str | int,
+            fy: float,                   # yield stress
+            E0: float,                   # initial stiffness
+            b: float,                    # hardening ratio (Eh/E0)
+            a1: float = 0.07,            # coefficient for isotropic hardening
+            a2: float = 2,               # coefficient for isotropic hardening
+            a3: float = 0.07,            # coefficient for isotropic hardening
+            a4: float = 2,               # coefficient for isotropic hardening
+            rho: float = 0.0,
+            unit: str | None = None
+    ) -> None:
+        
+        super().__init__(id=id, rho=rho, unit=unit)
+        self.fy = fy
+        self.E0 = E0
+        self.b  = b
+        self.a1 = a1
+        self.a2 = a2
+        self.a3 = a3
+        self.a4 = a4
+        # -------------------------------------------------------------------
+        # calculate fixed material properties
+        # -------------------------------------------------------------------
+        self.Eh = b*E0
+        self.epsy = fy/E0
+
+    
+    def compute(
+            self,
+            eps: float,
+            state: MaterialState
+    ) -> tuple[float,float]:
+        
+        # -------------------------------------------------------------------
+        # retrieve history variables
+        # -------------------------------------------------------------------
+        epsP = state.eps_committed                      # strain at previous converged step
+        sigP = state.sig_committed                      # stress at previous converged step
+        epsmin = state.hstv_committed.get("epsmin",0.0) # max eps in compression
+        epsmax = state.hstv_committed.get("epsmax",0.0) # max eps in tension
+        # -------------------------------------------------------------------
+        # calculate current strain increment
+        # -------------------------------------------------------------------
+        deps = eps - epsP
+        # -------------------------------------------------------------------
+        # isotropic hardening
+        # -------------------------------------------------------------------
+        hc = max(
+            self.fy * self.a1 * (epsmax/self.epsy - self.a2),
+            0.0 )
+        ht = max(
+            self.fy * self.a3 * (abs(epsmin/self.epsy) - self.a4),
+            0.0 )
+        # -------------------------------------------------------------------
+        # bilinear model
+        # -------------------------------------------------------------------
+        c1 = self.Eh * eps
+        c2 = (self.fy + hc)*(1 - self.b)
+        c3 = (self.fy + ht)*(1 - self.b)
+
+        c = sigP + self.E0*deps
+
+        sig = max(
+            c1 - c2,
+            min( (c1+c3), c ) )
+        
+        Et = self.Eh
+        if abs(sig - c) < 1e-10:
+            Et = self.E0
+
+        # -------------------------------------------------------------------
+        # update history variables
+        # -------------------------------------------------------------------
+        epsmin = min(eps, epsmin)
+        epsmax = max(eps, epsmax)
+        # -------------------------------------------------------------------
+        # update trial state
+        # -------------------------------------------------------------------
+        state.eps_trial = eps
+        state.sig_trial = sig
+        state.hstv_trial = {
+            "epsmin": epsmin,
+            "epsmax": epsmax }
+        
+        return sig, Et
+    
+
+    def to_dict(self) -> dict:
+        return {
+            "type": "steel01",
+            "id": self.id,
+            "fy": self.fy,
+            "E0": self.E0,
+            "b": self.b,
+            "a1": self.a1,
+            "a2": self.a2,
+            "a3": self.a3,
+            "a4": self.a4,
+            "rho": self.rho,
+            "unit": self.unit,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> steel01:
+        return cls(
+            id=data["id"],
+            fy=data["fy"],
+            E0=data["E0"],
+            b=data["b"],
+            a1=data.get("a1", 0.07),
+            a2=data.get("a2", 2.0),
+            a3=data.get("a3", 0.07),
+            a4=data.get("a4", 2.0),
+            rho=data.get("rho", 0.0),
+            unit=data.get("unit"),
+        )
+    
+    def __repr__(self) -> str:
+        return f"steel01 (id={self.id!r}, fy={self.fy}, E0={self.E0}, b={self.b}, a1={self.a1}, a2={self.a2}, a3={self.a3}, a4={self.a4})"
