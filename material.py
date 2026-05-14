@@ -140,6 +140,25 @@ class Material(ABC):
         """Reconstruct instance from dictionary."""
         ...
 
+    def run_strain_history(
+        self,
+        eps_history: list[float],
+    ) -> tuple[list[float], list[float]]:
+        """
+        Drive the material through a strain history and return (sigmas, E_tans).
+        Each step is committed — state evolves correctly for path-dependent materials.
+        """
+        state = MaterialState()
+        sigmas, E_tans = [], []
+        for eps in eps_history:
+            sigma, E_tan = self.compute(eps, state)
+            state.eps_trial = eps
+            state.sig_trial = sigma
+            state.commit()
+            sigmas.append(sigma)
+            E_tans.append(E_tan)
+        return sigmas, E_tans
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id!r})"
 
