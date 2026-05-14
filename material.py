@@ -13,12 +13,11 @@ revert() -> trial reverts to committed  (called by solver after divergence)
 All attributes are readable (educational purpose).
 Writing only through update() / commit() / revert().
 """
-# add new comment
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 # ---------------------------------------------------------------------------
@@ -40,40 +39,37 @@ class MaterialState:
     # --- committed ---
     eps_committed: float = 0.0    # converged strain
     sig_committed: float = 0.0    # converged stress
-    eps_p_committed: float = 0.0  # converged plastic strain
-    alpha_committed: float = 0.0  # converged hardening variable
+    hstv_committed: dict = field(default_factory = dict) # 
+
 
     # --- trial ---
     eps_trial: float = 0.0        # trial strain
     sig_trial: float = 0.0        # trial stress
-    eps_p_trial: float = 0.0      # trial plastic strain
-    alpha_trial: float = 0.0      # trial hardening variable
+    hstv_trial: dict = field(default_factory = dict)    # trial history variables
+
 
     def commit(self) -> None:
         """Trial -> committed. Called after step convergence."""
         self.eps_committed = self.eps_trial
         self.sig_committed = self.sig_trial
-        self.eps_p_committed = self.eps_p_trial
-        self.alpha_committed = self.alpha_trial
+        self.hstv_committed = self.hstv_trial.copy()
 
     def revert(self) -> None:
         """Committed -> trial. Called after divergence (undoes the iteration)."""
         # It can be useful if we wanna implement a dynamic steps
         self.eps_trial = self.eps_committed
         self.sig_trial = self.sig_committed
-        self.eps_p_trial = self.eps_p_committed
-        self.alpha_trial = self.alpha_committed
+        self.hstv_trial = self.hstv_committed.copy()
+
 
     def to_dict(self) -> dict:
         return {
             "eps_committed": self.eps_committed,
             "sig_committed": self.sig_committed,
-            "eps_p_committed": self.eps_p_committed,
-            "alpha_committed": self.alpha_committed,
+            "hstv_committed": self.hstv_committed,
             "eps_trial": self.eps_trial,
             "sig_trial": self.sig_trial,
-            "eps_p_trial": self.eps_p_trial,
-            "alpha_trial": self.alpha_trial,
+            "hstv_trial": self.hstv_trial,
         }
 
     @classmethod
