@@ -1,5 +1,5 @@
 '''
-numerical integration for element stifness and element forces
+numerical integration for element stiffness and element forces
 added: GaussLegendre, GaussLobatto
 to be added: GaussRadau, Modified GaussRadau2 (requires the length of the element as input)
 '''
